@@ -462,7 +462,7 @@ namespace VDF.GUI.Data {
 			set => this.RaiseAndSetIfChanged(ref _PartialClipVisualThresholdPercent, value);
 		}
 
-		List<string> _QualityCriteriaOrder = ["Duration", "Resolution", "FPS", "Bitrate", "Audio Bitrate"];
+		List<string> _QualityCriteriaOrder = ["Filename sequence", "Duration", "Resolution", "FPS", "Bitrate", "Audio Bitrate"];
 		[JsonPropertyName("QualityCriteriaOrder")]
 		public List<string> QualityCriteriaOrder {
 			get => _QualityCriteriaOrder;
@@ -509,6 +509,13 @@ namespace VDF.GUI.Data {
 			path = ResolveSettingsPath(path);
 			if (!File.Exists(path)) return;
 			instance = JsonSerializer.Deserialize<SettingsFile>(File.ReadAllBytes(path));
+			instance?.EnsureQualityCriteriaDefaults();
+		}
+
+		void EnsureQualityCriteriaDefaults() {
+			const string filenameSequence = "Filename sequence";
+			if (!QualityCriteriaOrder.Any(s => string.Equals(s, filenameSequence, StringComparison.OrdinalIgnoreCase)))
+				QualityCriteriaOrder.Insert(0, filenameSequence);
 		}
 
 		static bool LoadOldSettings(string? path) {

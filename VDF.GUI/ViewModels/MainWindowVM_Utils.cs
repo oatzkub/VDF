@@ -22,6 +22,7 @@ namespace VDF.GUI.ViewModels {
 	public partial class MainWindowVM : ReactiveObject {
 
 		static readonly Dictionary<string, QualityRanker.Criterion<DuplicateItemVM>> QualityCriteriaMap = new() {
+			["Filename sequence"] = new("Filename sequence", d => d.ItemInfo.FilenameSequenceAffinity, videoOnly: false),
 			["Duration"] = new("Duration", d => d.ItemInfo.Duration, videoOnly: true),
 			["Resolution"] = new("Resolution", d => d.ItemInfo.FrameSizeInt, videoOnly: false),
 			["FPS"] = new("FPS", d => d.ItemInfo.Fps, videoOnly: true),

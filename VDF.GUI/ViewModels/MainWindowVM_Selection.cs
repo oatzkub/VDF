@@ -73,6 +73,7 @@ namespace VDF.GUI.ViewModels {
 				interpreter = new Interpreter(InterpreterOptions.PrimitiveTypes | InterpreterOptions.SystemKeywords)
 					.Reference(typeof(TimeSpan))
 					.Reference(typeof(Math))
+					.Reference(typeof(System.IO.Path))
 					.Reference(typeof(Regex))
 					.ParseAsDelegate<Func<DuplicateItem, bool>>(SettingsFile.Instance.LastCustomSelectExpression, shortIdentifier);
 			}

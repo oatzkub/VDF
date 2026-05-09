@@ -201,6 +201,8 @@ namespace VDF.Core {
 				await Task.Run(ScanForDuplicates, cancelationTokenSource.Token);
 			if (!cancelationTokenSource.IsCancellationRequested && Settings.EnablePartialClipDetection)
 				await Task.Run(ScanForPartialDuplicates, cancelationTokenSource.Token);
+			if (!cancelationTokenSource.IsCancellationRequested)
+				ApplyFilenameSequenceAffinity();
 			SearchTimer.Stop();
 			ElapsedTimer.Stop();
 			Logger.Instance.Info(T("Log.FinishedScanForDuplicates", SearchTimer.Elapsed));
@@ -260,6 +262,17 @@ namespace VDF.Core {
 				ElapsedTimer.Reset();
 
 			isScanning = true;
+		}
+
+		void ApplyFilenameSequenceAffinity() {
+			var paths = DatabaseUtils.Database.Select(entry => entry.Path).ToList();
+			var sequenceScores = FilenameSequence.BuildSequenceAffinityIndex(paths);
+			if (sequenceScores.Count == 0)
+				return;
+
+			foreach (var item in Duplicates) {
+				item.FilenameSequenceAffinity = sequenceScores.TryGetValue(item.Path, out int score) ? score : 0;
+			}
 		}
 
 		void CancelAllTasks() {

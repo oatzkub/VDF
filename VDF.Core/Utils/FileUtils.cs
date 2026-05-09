@@ -49,7 +49,7 @@ namespace VDF.Core.Utils {
 			".rm"
 		};
 		static readonly string[] AllExtensions = VideoExtensions.Concat(ImageExtensions).ToArray();
-		internal static List<FileInfo> GetFilesRecursive(string initial, bool ignoreReadonly, bool ignoreReparsePoints, bool recursive, bool includeImages, List<string> excludeFolders, CancellationToken cancellationToken) {
+		internal static IEnumerable<FileInfo> GetFilesRecursive(string initial, bool ignoreReadonly, bool ignoreReparsePoints, bool recursive, bool includeImages, List<string> excludeFolders, CancellationToken cancellationToken) {
 			EnumerationOptions enumerationOptions = new() {
 				IgnoreInaccessible = true,
 				AttributesToSkip = FileAttributes.System
@@ -62,7 +62,6 @@ namespace VDF.Core.Utils {
 
 			var extensions = includeImages ? AllExtensions : VideoExtensions;
 
-			List<FileInfo> files = new();
 			Queue<DirectoryInfo> subFolders = new();
 			subFolders.Enqueue(new(initial));
 
@@ -72,8 +71,10 @@ namespace VDF.Core.Utils {
 				DirectoryInfo currentFolder = subFolders.Dequeue();
 				try {
 
-					files.AddRange(currentFolder.EnumerateFiles("*", enumerationOptions)
-					.Where(f => extensions.Any(x => f.FullName.EndsWith(x, StringComparison.OrdinalIgnoreCase))));
+					foreach (var file in currentFolder.EnumerateFiles("*", enumerationOptions)
+						.Where(f => extensions.Any(x => f.FullName.EndsWith(x, StringComparison.OrdinalIgnoreCase)))) {
+						yield return file;
+					}
 
 					if (!recursive)
 						break;
@@ -96,9 +97,6 @@ namespace VDF.Core.Utils {
 					Logger.Instance.Info($"Failed to enumerate '{currentFolder.FullName}' because of: {e}");
 				}
 			}
-
-			return files;
-
 		}
 
 		/// <summary>

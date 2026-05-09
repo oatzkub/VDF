@@ -89,7 +89,7 @@
         </Style>
     </Window.Styles>
     <Border BorderBrush="{DynamicResource SystemControlBackgroundChromeMediumBrush}" BorderThickness="2">
-        <Grid ColumnDefinitions="200,1,*" RowDefinitions="Auto, *">
+        <Grid ColumnDefinitions="200,1,*" RowDefinitions="Auto,Auto,Auto,Auto,*">
             <controls:ExperimentalAcrylicBorder
                 x:Name="ExperimentalAcrylicBorderBackgroundWhite"
                 IsHitTestVisible="False"
@@ -388,9 +388,73 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Viewer -->
                 <Border
                     Grid.Row="3"
+                    Margin="0,4,8,0"
+                    Padding="10,6"
+                    Classes="section"
+                    IsVisible="{Binding HasSequenceContext}">
+                    <StackPanel Spacing="8">
+                        <StackPanel IsVisible="{Binding HasSequenceContextA}" Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Classes="badge-a">
+                                    <TextBlock Classes="badge-text" Text="A" />
+                                </Border>
+                                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Text="Related sequence" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding SequenceContextA}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SequenceContextPreviewItem">
+                                        <Border Width="140" Padding="4" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+                                            <StackPanel Spacing="2">
+                                                <Image Height="68" IsVisible="{Binding !IsLoading}" Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SequenceName}" />
+                                                <TextBlock FontSize="10" FontWeight="SemiBold" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding Entry.Path}" />
+                                                <TextBlock FontSize="10" Opacity="0.6" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding Entry.Path}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding HasSequenceContextB}" Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Classes="badge-b">
+                                    <TextBlock Classes="badge-text" Text="B" />
+                                </Border>
+                                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Text="Related sequence" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding SequenceContextB}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SequenceContextPreviewItem">
+                                        <Border Width="140" Padding="4" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+                                            <StackPanel Spacing="2">
+                                                <Image Height="68" IsVisible="{Binding !IsLoading}" Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SequenceName}" />
+                                                <TextBlock FontSize="10" FontWeight="SemiBold" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding Entry.Path}" />
+                                                <TextBlock FontSize="10" Opacity="0.6" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding Entry.Path}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Viewer -->
+                <Border
+                    Grid.Row="4"
                     Margin="0,6,8,0"
                     Background="{actipro:ThemeResource Container1BackgroundBrush}"
                     BorderBrush="{actipro:ThemeResource Container1BorderBrush}"
@@ -529,7 +593,7 @@
 
             <!-- Loading overlay -->
             <Border
-                Grid.RowSpan="4"
+                Grid.RowSpan="5"
                 Grid.ColumnSpan="4"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"

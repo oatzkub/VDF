@@ -62,8 +62,11 @@ namespace VDF.CLI.Actions {
 			};
 
 		static DuplicateItem PickHighestQuality(List<DuplicateItem> items) {
-			// Prefer items flagged as best by the scan engine; fall back to highest bitrate
-			var best = items.FirstOrDefault(i => i.IsBestBitRateKbs)
+			// Prefer items that sit in a filename sequence run, then items flagged as best
+			// by the scan engine; fall back to highest bitrate / resolution / size.
+			var best = items.OrderByDescending(i => i.FilenameSequenceAffinity)
+				.FirstOrDefault(i => i.FilenameSequenceAffinity > 0)
+				?? items.FirstOrDefault(i => i.IsBestBitRateKbs)
 				?? items.FirstOrDefault(i => i.IsBestFrameSize)
 				?? items.OrderByDescending(i => i.BitRateKbs)
 					.ThenByDescending(i => i.FrameSizeInt)

@@ -142,6 +142,9 @@ namespace VDF.GUI.ViewModels {
 			set => this.RaiseAndSetIfChanged(ref _AudioBitRateDiff, value);
 		}
 
+		[JsonIgnore]
+		public int FilenameSequenceAffinity => ItemInfo.FilenameSequenceAffinity;
+
 		/// <summary>
 		///   Returns if item matches the filter conditions
 		/// </summary>

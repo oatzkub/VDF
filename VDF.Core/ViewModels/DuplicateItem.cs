@@ -158,6 +158,8 @@ namespace VDF.Core.ViewModels {
 		public DateTime DateCreated { get; private set; }
 		[JsonInclude]
 		public DuplicateFlags Flags { get; private set; }
+		[JsonInclude]
+		public int FilenameSequenceAffinity { get; set; }
 
 		[JsonInclude]
 		public bool IsImage { get; private set; }

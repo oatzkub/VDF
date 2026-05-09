@@ -25,7 +25,9 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using ReactiveUI;
 using SixLabors.ImageSharp;
+using VDF.Core;
 using VDF.Core.FFTools;
+using VDF.Core.Utils;
 using VDF.GUI.Data;
 using VDF.GUI.Utils;
 
@@ -33,6 +35,8 @@ namespace VDF.GUI.ViewModels {
 	public enum CompareMode { Single, Swipe, SideBySide, Stacked }
 	public sealed class ThumbnailComparerVM : ReactiveObject {
 		public ObservableCollection<LargeThumbnailDuplicateItem> Items { get; }
+		public ObservableCollection<SequenceContextPreviewItem> SequenceContextA { get; } = new();
+		public ObservableCollection<SequenceContextPreviewItem> SequenceContextB { get; } = new();
 
 		private LargeThumbnailDuplicateItem? _selectedItemA;
 		public LargeThumbnailDuplicateItem? SelectedItemA {
@@ -259,6 +263,11 @@ namespace VDF.GUI.ViewModels {
 		readonly Func<Guid, bool, (Guid GroupId, List<LargeThumbnailDuplicateItem> Items)?>? _groupNavigator;
 		Guid? _currentGroupId;
 		public bool CanNavigateGroups => _groupNavigator != null && _currentGroupId.HasValue;
+		public bool HasSequenceContextA => SequenceContextA.Count > 0;
+		public bool HasSequenceContextB => SequenceContextB.Count > 0;
+		public bool HasSequenceContext => SequenceContextA.Count > 0 || SequenceContextB.Count > 0;
+
+		CancellationTokenSource? _sequenceContextCts;
 
 		public ReactiveCommand<Unit, Unit>? PreviousGroupCommand { get; }
 		public ReactiveCommand<Unit, Unit>? NextGroupCommand { get; }
@@ -273,6 +282,8 @@ namespace VDF.GUI.ViewModels {
 			Items = new(duplicateItemVMs);
 			_currentGroupId = currentGroupId;
 			_groupNavigator = groupNavigator;
+			SequenceContextA.CollectionChanged += (_, _) => UpdateSequenceContextFlags();
+			SequenceContextB.CollectionChanged += (_, _) => UpdateSequenceContextFlags();
 
 			var modes = new ObservableCollection<CompareMode> {
 				CompareMode.Single, CompareMode.Swipe, CompareMode.SideBySide, CompareMode.Stacked
@@ -324,9 +335,10 @@ namespace VDF.GUI.ViewModels {
 				this.RaisePropertyChanged(nameof(SelectedItemA));
 				this.RaisePropertyChanged(nameof(SelectedItemB));
 
-				Items.Clear();
-				foreach (var item in result.Value.Items)
-					Items.Add(item);
+			Items.Clear();
+			foreach (var item in result.Value.Items)
+				Items.Add(item);
+			ClearSequenceContext();
 			}
 			finally {
 				_suppressSelectionUpdates = false;
@@ -338,6 +350,19 @@ namespace VDF.GUI.ViewModels {
 			this.RaisePropertyChanged(nameof(ImageSingle));
 
 			await LoadThumbnailsAsync();
+		}
+
+		void ClearSequenceContext() {
+			_sequenceContextCts?.Cancel();
+			SequenceContextA.Clear();
+			SequenceContextB.Clear();
+			UpdateSequenceContextFlags();
+		}
+
+		void UpdateSequenceContextFlags() {
+			this.RaisePropertyChanged(nameof(HasSequenceContextA));
+			this.RaisePropertyChanged(nameof(HasSequenceContextB));
+			this.RaisePropertyChanged(nameof(HasSequenceContext));
 		}
 
 		bool _suppressSelectionUpdates;
@@ -358,12 +383,14 @@ namespace VDF.GUI.ViewModels {
 			}
 			UpdateShowFrameControls();
 			UpdateImages();
+			_ = RefreshSequenceContextAsync();
 		}
 
 		void OnSelectionChanged() {
 			if (_suppressSelectionUpdates) return;
 			UpdateShowFrameControls();
 			UpdateImages();
+			_ = RefreshSequenceContextAsync();
 		}
 
 		// Auto-fallback to Single when only one image is available. Must not write to
@@ -418,6 +445,87 @@ namespace VDF.GUI.ViewModels {
 			this.RaisePropertyChanged(nameof(ImageSingle));
 			UpdateFrameLabels();
 			Recalc();
+		}
+
+		async Task RefreshSequenceContextAsync() {
+			_sequenceContextCts?.Cancel();
+			var cts = new CancellationTokenSource();
+			_sequenceContextCts = cts;
+			var ct = cts.Token;
+
+			var itemA = SelectedItemA;
+			var itemB = SelectedItemB;
+			if (itemA == null && itemB == null) {
+				ClearSequenceContext();
+				return;
+			}
+
+			try {
+				var contextA = await BuildSequenceContextAsync(itemA, ct);
+				var contextB = await BuildSequenceContextAsync(itemB, ct);
+				if (ct.IsCancellationRequested) return;
+
+				SequenceContextA.Clear();
+				foreach (var item in contextA)
+					SequenceContextA.Add(item);
+				SequenceContextB.Clear();
+				foreach (var item in contextB)
+					SequenceContextB.Add(item);
+				UpdateSequenceContextFlags();
+
+				var thumbnailTasks = contextA
+					.Select(item => Task.Run(() => item.LoadThumbnail(), ct))
+					.Concat(contextB.Select(item => Task.Run(() => item.LoadThumbnail(), ct)));
+				await Task.WhenAll(thumbnailTasks);
+			}
+			catch (OperationCanceledException) { }
+		}
+
+		async Task<List<SequenceContextPreviewItem>> BuildSequenceContextAsync(LargeThumbnailDuplicateItem? selected, CancellationToken ct) {
+			if (selected == null) return new List<SequenceContextPreviewItem>();
+			if (!ScanEngine.GetFromDatabase(selected.Item.ItemInfo.Path, out var dbEntry) || dbEntry == null)
+				return new List<SequenceContextPreviewItem>();
+
+			var related = await Task.Run(() =>
+				FilenameSequence.FindAdjacentSequenceItems(dbEntry, DatabaseUtils.Database), ct);
+			if (ct.IsCancellationRequested) return new List<SequenceContextPreviewItem>();
+
+			return related
+				.Select(entry => new SequenceContextPreviewItem(
+					entry,
+					Path.GetFileNameWithoutExtension(entry.Path),
+					FormatContextDetail(entry)))
+				.ToList();
+		}
+
+		static string FormatContextDetail(FileEntry entry) {
+			string ext = Path.GetExtension(entry.Path).TrimStart('.').ToLowerInvariant();
+			string duration = entry.mediaInfo != null && entry.mediaInfo.Duration > TimeSpan.Zero
+				? entry.mediaInfo.Duration.ToString(@"hh\:mm\:ss")
+				: string.Empty;
+			var video = entry.mediaInfo?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "video", StringComparison.OrdinalIgnoreCase));
+			var audio = entry.mediaInfo?.Streams?.FirstOrDefault(s => string.Equals(s.CodecType, "audio", StringComparison.OrdinalIgnoreCase));
+			string frameSize = video != null && video.Width > 0 && video.Height > 0
+				? $"{video.Width}x{video.Height}"
+				: string.Empty;
+			string videoCodec = string.IsNullOrWhiteSpace(video?.CodecName) ? string.Empty : video.CodecName;
+			string audioCodec = string.IsNullOrWhiteSpace(audio?.CodecName) ? string.Empty : audio.CodecName;
+			string audioLayout = string.IsNullOrWhiteSpace(audio?.ChannelLayout) ? string.Empty : audio.ChannelLayout;
+			string audioRate = audio?.SampleRate > 0 ? $"{audio.SampleRate / 1000d:0.#}kHz" : string.Empty;
+
+			var parts = new List<string>();
+			if (!string.IsNullOrWhiteSpace(ext)) parts.Add(ext);
+			if (!string.IsNullOrWhiteSpace(duration)) parts.Add(duration);
+			if (!string.IsNullOrWhiteSpace(videoCodec) || !string.IsNullOrWhiteSpace(audioCodec)) {
+				string codec = string.Join(" / ", new[] { videoCodec, audioCodec }.Where(x => !string.IsNullOrWhiteSpace(x)));
+				if (!string.IsNullOrWhiteSpace(codec))
+					parts.Add(codec);
+			}
+			if (!string.IsNullOrWhiteSpace(audioLayout)) parts.Add(audioLayout);
+			if (!string.IsNullOrWhiteSpace(audioRate)) parts.Add(audioRate);
+			if (!string.IsNullOrWhiteSpace(frameSize)) parts.Add(frameSize);
+			if (parts.Count == 0) parts.Add(entry.FileSize.BytesToString());
+			return string.Join(" | ", parts);
 		}
 
 		Bitmap? GetItemFrameSync(LargeThumbnailDuplicateItem? item, int baseIdx, int step) {
@@ -744,4 +852,58 @@ namespace VDF.GUI.ViewModels {
 			return bmp;
 		}
 	}
+
+	public sealed class SequenceContextPreviewItem : ReactiveObject {
+		public FileEntry Entry { get; }
+		public string RelationLabel { get; }
+		public string Detail { get; }
+		public string FileName => System.IO.Path.GetFileName(Entry.Path);
+		public string SequenceName => RelationLabel;
+
+		Bitmap? _thumbnail;
+		public Bitmap? Thumbnail {
+			get => _thumbnail;
+			private set => this.RaiseAndSetIfChanged(ref _thumbnail, value);
+		}
+
+		bool _isLoading = true;
+		public bool IsLoading {
+			get => _isLoading;
+			private set => this.RaiseAndSetIfChanged(ref _isLoading, value);
+		}
+
+		public SequenceContextPreviewItem(FileEntry entry, string relationLabel, string detail) {
+			Entry = entry;
+			RelationLabel = relationLabel;
+			Detail = detail;
+		}
+
+		public void LoadThumbnail() {
+			try {
+				if (Entry.IsImage) {
+					Thumbnail = new Bitmap(Entry.Path);
+					return;
+				}
+
+				var position = Entry.mediaInfo != null && Entry.mediaInfo.Duration > TimeSpan.Zero
+					? TimeSpan.FromSeconds(Math.Min(Entry.mediaInfo.Duration.TotalSeconds * 0.25, 5.0))
+					: TimeSpan.Zero;
+				var bytes = FfmpegEngine.GetThumbnail(new FfmpegSettings {
+					File = Entry.Path,
+					Position = position,
+					GrayScale = 0,
+					Fullsize = 1
+				}, SettingsFile.Instance.ExtendedFFToolsLogging);
+				if (bytes != null && bytes.Length > 0) {
+					using var ms = new MemoryStream(bytes);
+					Thumbnail = new Bitmap(ms);
+				}
+			}
+			catch { }
+			finally {
+				IsLoading = false;
+			}
+		}
+	}
 }
+

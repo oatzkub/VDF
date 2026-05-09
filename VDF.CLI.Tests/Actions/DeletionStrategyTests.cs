@@ -23,7 +23,7 @@ namespace VDF.CLI.Tests.Actions;
 public class DeletionStrategyTests {
 	static DuplicateItem MakeItem(Guid groupId, long size, float similarity = 100f,
 		double durationSeconds = 60, int frameSizeInt = 1920, decimal bitRateKbs = 5000,
-		bool isBestBitRate = false, bool isBestFrameSize = false) {
+		bool isBestBitRate = false, bool isBestFrameSize = false, int filenameSequenceAffinity = 0) {
 		// Use JSON deserialization to set private-setter properties via [JsonInclude]
 		var json = JsonSerializer.Serialize(new {
 			GroupId = groupId,
@@ -34,6 +34,7 @@ public class DeletionStrategyTests {
 			BitRateKbs = bitRateKbs,
 			IsBestBitRateKbs = isBestBitRate,
 			IsBestFrameSize = isBestFrameSize,
+			FilenameSequenceAffinity = filenameSequenceAffinity,
 			Path = $"/test/{size}.mp4",
 			Folder = "/test",
 			IsImage = false,
@@ -141,6 +142,19 @@ public class DeletionStrategyTests {
 
 		Assert.Single(toDelete);
 		Assert.Equal(5000, toDelete[0].SizeLong); // the non-best item is deleted
+	}
+
+	[Fact]
+	public void SelectForDeletion_LowestQuality_PrefersFilenameSequenceContext() {
+		var items = new List<DuplicateItem> {
+			MakeItem(Group1, size: 1000, filenameSequenceAffinity: 2),
+			MakeItem(Group1, size: 5000, isBestBitRate: true),
+		};
+
+		var toDelete = DeletionStrategy.SelectForDeletion(items, Strategy.LowestQuality);
+
+		Assert.Single(toDelete);
+		Assert.Equal(5000, toDelete[0].SizeLong);
 	}
 
 	[Fact]
