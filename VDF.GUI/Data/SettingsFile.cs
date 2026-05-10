@@ -23,6 +23,7 @@ using System.Xml.Linq;
 using ReactiveUI;
 using VDF.Core.Utils;
 using VDF.GUI.ViewModels;
+using System.Linq;
 
 namespace VDF.GUI.Data {
 	public enum ThumbnailDoubleClickAction { OpenFile, OpenThumbnailComparer }
